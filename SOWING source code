@@ -1,0 +1,75 @@
+#include "BluetoothSerial.h"
+#include <ESP32Servo.h>
+
+BluetoothSerial SerialBT;
+
+#define RPWM 25
+#define LPWM 26
+
+Servo seedServo;
+
+int servoPos = 0;
+
+void setup() {
+
+  pinMode(RPWM, OUTPUT);
+  pinMode(LPWM, OUTPUT);
+
+  digitalWrite(RPWM, LOW);
+  digitalWrite(LPWM, LOW);
+
+  seedServo.attach(27);
+
+  seedServo.write(100);
+
+  SerialBT.begin("ESP32_SOWER");
+}
+
+void loop() {
+
+  if (SerialBT.available()) {
+
+    char command = SerialBT.read();
+
+    // FORWARD
+    if (command == 'F') {
+
+      digitalWrite(RPWM, HIGH);
+      digitalWrite(LPWM, LOW);
+    }
+
+    // BACKWARD
+    else if (command == 'B') {
+
+      digitalWrite(RPWM, LOW);
+      digitalWrite(LPWM, HIGH);
+    }
+
+    // STOP
+    else if (command == 'S' || command == '0') {
+
+      digitalWrite(RPWM, LOW);
+      digitalWrite(LPWM, LOW);
+    }
+
+    // SERVO OPEN
+    else if (command == 'O') {
+
+      for (servoPos = 0; servoPos <= 90; servoPos++) {
+
+        seedServo.write(servoPos);
+        delay(1000);
+      }
+    }
+
+    // SERVO CLOSE
+    else if (command == 'C') {
+
+      for (servoPos = 90; servoPos >= 0; servoPos--) {
+
+        seedServo.write(servoPos);
+        delay(1000);
+      }
+    }
+  }
+}
