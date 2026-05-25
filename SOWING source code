@@ -1,75 +1,142 @@
-#include "BluetoothSerial.h"
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
 #include <ESP32Servo.h>
-
-BluetoothSerial SerialBT;
 
 #define RPWM 25
 #define LPWM 26
+#define SERVO_PIN 27
 
 Servo seedServo;
 
-int servoPos = 0;
+#define SERVICE_UUID        "12345678-1234-1234-1234-123456789abc"
+#define CHARACTERISTIC_UUID "abcd1234-1234-1234-1234-abcdef123456"
+
+
+
+bool movingForward = false;
+
+void stopSeeder() {
+
+  analogWrite(RPWM, 0);
+  analogWrite(LPWM, 0);
+  
+  movingForward = false;
+
+  seedServo.write(0);
+}
+
+void forwardSeeder() {
+
+  analogWrite(RPWM, 100);
+
+  analogWrite(LPWM, 0);
+
+  movingForward = true;
+}
+
+void backwardSeeder() {
+
+  analogWrite(RPWM, 0);
+
+  analogWrite(LPWM, 100);
+
+  movingForward = false;
+
+  seedServo.write(0);
+}
+
+
+class CommandCallback : public BLECharacteristicCallbacks {
+
+  void onWrite(BLECharacteristic *characteristic) {
+
+    std::string value = characteristic->getValue();
+
+    String command = String(value.c_str());
+
+    Serial.print("Received: ");
+    Serial.println(command);
+
+    if (command == "F") {
+
+      forwardSeeder();
+    }
+    
+    else if (command == "B") {
+
+      backwardSeeder();
+    }
+
+    else if (command == "S" || command == "0") {
+
+      stopSeeder();
+    }
+  }
+};
+
 
 void setup() {
+
+  Serial.begin(115200);
 
   pinMode(RPWM, OUTPUT);
   pinMode(LPWM, OUTPUT);
 
-  digitalWrite(RPWM, LOW);
-  digitalWrite(LPWM, LOW);
+  analogWrite(RPWM, 0);
+  analogWrite(LPWM, 0);
 
-  seedServo.attach(27);
 
-  seedServo.write(100);
+  ESP32PWM::allocateTimer(0);
 
-  SerialBT.begin("ESP32_SOWER");
+  seedServo.setPeriodHertz(50);
+
+  seedServo.attach(SERVO_PIN, 500, 2400);
+
+  seedServo.write(0);
+
+
+  BLEDevice::init("ESP32_SOWER");
+
+  BLEServer *server = BLEDevice::createServer();
+
+  BLEService *service = server->createService(SERVICE_UUID);
+
+  BLECharacteristic *characteristic = service->createCharacteristic(
+    CHARACTERISTIC_UUID,
+    BLECharacteristic::PROPERTY_WRITE
+  );
+
+  characteristic->setCallbacks(new CommandCallback());
+
+  service->start();
+
+  BLEAdvertising *advertising = BLEDevice::getAdvertising();
+
+  advertising->addServiceUUID(SERVICE_UUID);
+
+  advertising->start();
+
+  Serial.println("BLE Seeder Ready");
 }
+
 
 void loop() {
 
-  if (SerialBT.available()) {
+  if (movingForward) {
 
-    char command = SerialBT.read();
+    for (int pos = 0; pos <= 180; pos += 1) {
 
-    // FORWARD
-    if (command == 'F') {
+      seedServo.write(pos);
 
-      digitalWrite(RPWM, HIGH);
-      digitalWrite(LPWM, LOW);
+      delay(25);
     }
 
-    // BACKWARD
-    else if (command == 'B') {
+    seedServo.write(0);
 
-      digitalWrite(RPWM, LOW);
-      digitalWrite(LPWM, HIGH);
-    }
-
-    // STOP
-    else if (command == 'S' || command == '0') {
-
-      digitalWrite(RPWM, LOW);
-      digitalWrite(LPWM, LOW);
-    }
-
-    // SERVO OPEN
-    else if (command == 'O') {
-
-      for (servoPos = 0; servoPos <= 90; servoPos++) {
-
-        seedServo.write(servoPos);
-        delay(1000);
-      }
-    }
-
-    // SERVO CLOSE
-    else if (command == 'C') {
-
-      for (servoPos = 90; servoPos >= 0; servoPos--) {
-
-        seedServo.write(servoPos);
-        delay(1000);
-      }
-    }
+    delay(80);
   }
+
+  delay(10);
 }
