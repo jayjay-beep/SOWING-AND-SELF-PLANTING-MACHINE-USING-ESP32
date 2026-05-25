@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Seeder Control</title>
+</head>
+<body style="text-align:center; font-family:Arial; margin-top:50px;">
+
+  <h1>Bluetooth Seeder Control</h1>
+
+  <button onclick="connectBluetooth()">Connect Bluetooth</button>
+
+  <br><br>
+
+  <button onclick="sendCommand('F')" style="font-size:25px;">FORWARD</button>
+  <button onclick="sendCommand('B')" style="font-size:25px;">BACKWARD</button>
+  <button onclick="sendCommand('S')" style="font-size:25px;">STOP</button>
+
+  <p id="status">Not Connected</p>
+
+<script>
+let characteristic;
+
+const SERVICE_UUID = "12345678-1234-1234-1234-123456789abc";
+const CHARACTERISTIC_UUID = "abcd1234-1234-1234-1234-abcdef123456";
+
+async function connectBluetooth() {
+  try {
+    const device = await navigator.bluetooth.requestDevice({
+      filters: [{ name: "ESP32_SOWER" }],
+      optionalServices: [SERVICE_UUID]
+    });
+
+    const server = await device.gatt.connect();
+    const service = await server.getPrimaryService(SERVICE_UUID);
+    characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+    document.getElementById("status").innerText = "Connected to ESP32_SOWER";
+  } catch (error) {
+    document.getElementById("status").innerText = "Connection Failed";
+    console.log(error);
+  }
+}
+
+async function sendCommand(command) {
+  if (!characteristic) {
+    alert("Connect Bluetooth first");
+    return;
+  }
+
+  let encoder = new TextEncoder();
+  await characteristic.writeValue(encoder.encode(command));
+}
+</script>
+
+</body>
+</html>
